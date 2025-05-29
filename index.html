@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuraMorphosis Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --background: #190F29; /* Body background */
+    --surface-1: #1F1730; /* Sidebar, headers, primary card bg */
+    --surface-2: #231A36; /* Main content area bg, secondary card bg */
+    --surface-3: #2A213D; /* Hover backgrounds, input field bg */
+    --surface-active: #362D4A; /* Active/hover states */
+
+    --text-primary: #E2DFE8;
+    --text-secondary: #ADAAB8;
+    --text-placeholder: #787186;
+    
+    --border-color: #3C2E57;
+    --border-color-light: #2A213D;
+
+
+    --primary: #A449F0;
+    --primary-hover: #B663F3;
+    --ring: #B663F3; /* For focus rings */
+    --text-on-primary: #FFFFFF;
+    --text-accent: #E65AF7; /* For specific icons or highlights */
+  }
+
+  html[data-theme="blue"] {
+    --primary: #2563EB;
+    --primary-hover: #3B82F6;
+    --ring: #3B82F6;
+    --text-accent: #60A5FA;
+  }
+
+  html[data-theme="green"] {
+    --primary: #059669;
+    --primary-hover: #10B981;
+    --ring: #10B981;
+    --text-accent: #34D399;
+  }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--background);
+    color: var(--text-primary);
+  }
+
+  /* Custom Scrollbar Styling */
+  main::-webkit-scrollbar, html::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  main::-webkit-scrollbar-track, html::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  main::-webkit-scrollbar-thumb, html::-webkit-scrollbar-thumb {
+    background-color: var(--primary);
+    border-radius: 20px;
+  }
+
+  main::-webkit-scrollbar-thumb:hover, html::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary-hover);
+  }
+
+  html, main {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) var(--background);
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.1",
+    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
+    "lucide-react": "https://esm.sh/lucide-react@^0.400.0"
+  }
+}
+</script>
+</head>
+<body class="bg-[var(--background)]">
+  <div id="root"></div>
+  <script type="module" src="/assets/bundle.js"></script>
+</body>
+</html><link rel="stylesheet" href="index.css">
+<script src="index.tsx" type="module"></script>

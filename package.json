@@ -1,0 +1,21 @@
+{
+  "name": "neuramorphosis-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A real-time chat application featuring NeuraMorphosis AI",
+  "scripts": {
+    "build": "esbuild index.tsx --bundle --outfile=dist/assets/bundle.js --format=esm --platform=browser --jsx=automatic --loader:.png=dataurl --loader:.svg=dataurl --define:process.env.NODE_ENV='\"production\"' && cp index.html dist/index.html && cp metadata.json dist/metadata.json",
+    "dev": "esbuild index.tsx --bundle --outfile=dist/assets/bundle.js --format=esm --platform=browser --jsx=automatic --loader:.png=dataurl --loader:.svg=dataurl --servedir=dist --watch"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "lucide-react": "^0.400.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.3"
+  }
+}
