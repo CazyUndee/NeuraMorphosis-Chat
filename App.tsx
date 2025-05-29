@@ -11,21 +11,13 @@ import {
   initializeChatSession, 
   sendMessageToChatStream, 
   resetChatSession, 
-  // generateImageWithImagen, // Removed
-  // generateVideoWithVeo, // Removed
   generateChatTitleWithAI,
   AVAILABLE_CHAT_MODELS, 
   DEFAULT_CHAT_MODEL,    
-  // IMAGE_MODEL_NAME, // Removed
-  // VIDEO_MODEL_NAME  // Removed
 } from './services/geminiService';
 import * as localStorageService from './services/localStorageService';
-import { GenerateContentResponse, Part } from "@google/genai"; // Part might be unused now if not sending files from user
-import { Menu, X, Trash2, Settings as SettingsIcon } from 'lucide-react';
-
-// VEO_2_MODEL_KNOWN_UNSUPPORTED_WITH_GENERATE_CONTENT removed
-// isActualImageFeatureConfigured removed
-// isActualVideoFeatureConfigured removed
+import { GenerateContentResponse, Part } from "@google/genai"; 
+import { Menu, X, Trash2, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
 
 const INITIAL_AI_WELCOME_TEXT_IDENTIFIER = "Hello! I'm NeuraMorphosis AI. How can I help you today?";
 
@@ -44,9 +36,6 @@ const createNewWelcomeMessage = (): ChatMessageContent => ({
 const mapMessagesToGeminiHistory = (messages: ChatMessageContent[], appInitialWelcomeTextForFiltering: string): ChatMessageHistoryItem[] => {
   const history: ChatMessageHistoryItem[] = [];
   for (const msg of messages) {
-    // Simplified filtering, as image/video specific messages are no longer a concern
-    // Fields like videoGenerating, videoUrl are removed from ChatMessageContent
-
     if (msg.text.startsWith(INITIAL_AI_WELCOME_TEXT_IDENTIFIER) && msg.sender === Sender.AI && messages.length === 1) {
       // No specific exclusion here, as it's generally fine in history. Landing page visibility is separate.
     }
@@ -79,6 +68,7 @@ interface ChatContextForTitleUpdate {
 }
 
 const App: React.FC = () => {
+  const [isApiKeyMissing] = useState<boolean>(!process.env.API_KEY);
   const appInitialWelcomeTextRef = useRef(createAppInitialWelcomeText());
 
   const [messages, setMessages] = useState<ChatMessageContent[]>(() => [createNewWelcomeMessage()]);
@@ -96,8 +86,6 @@ const App: React.FC = () => {
   
   const [thinkingBudget, setThinkingBudget] = useState<number>(0); 
   const [currentChatModel, setCurrentChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
-  // imageGenerationEnabled removed
-  // videoGenerationEnabled removed
   
   const [isSummarizeModalOpen, setIsSummarizeModalOpen] = useState<boolean>(false);
   
@@ -137,6 +125,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    if (isApiKeyMissing) return;
     const loadedChats = localStorageService.loadChats();
     setAllChats(loadedChats);
     const activeId = localStorageService.loadActiveChatId();
@@ -156,17 +145,20 @@ const App: React.FC = () => {
       startNewChat();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, [isApiKeyMissing]); 
 
   useEffect(() => {
+    if (isApiKeyMissing) return;
     localStorageService.saveChats(allChats);
-  }, [allChats]);
+  }, [allChats, isApiKeyMissing]);
 
   useEffect(() => {
+    if (isApiKeyMissing) return;
     localStorageService.saveActiveChatId(currentChatId);
-  }, [currentChatId]);
+  }, [currentChatId, isApiKeyMissing]);
 
   useEffect(() => {
+    if (isApiKeyMissing) return;
     if (currentView === 'chat') { 
       const isLandingVisible = messages.length === 1 &&
                               messages[0].sender === Sender.AI &&
@@ -176,13 +168,13 @@ const App: React.FC = () => {
         scrollToBottom();
       }
     }
-  }, [messages, isLoading, appInitialWelcomeTextRef, currentView]);
+  }, [messages, isLoading, appInitialWelcomeTextRef, currentView, isApiKeyMissing]);
 
   const titleUpdateQueue = useRef<ChatContextForTitleUpdate | null>(null);
   const titleUpdateTimeout = useRef<number | null>(null);
 
   const processTitleUpdateQueue = useCallback(async () => {
-    if (!titleUpdateQueue.current) return;
+    if (isApiKeyMissing || !titleUpdateQueue.current) return;
 
     const { id: chatIdForTitle, isNew, messagesForContext } = titleUpdateQueue.current;
     titleUpdateQueue.current = null; 
@@ -213,9 +205,10 @@ const App: React.FC = () => {
     } finally {
       setIsTitleLoading(false);
     }
-  }, [currentChatId, appInitialWelcomeTextRef]);
+  }, [currentChatId, appInitialWelcomeTextRef, isApiKeyMissing]);
 
   const scheduleTitleUpdate = useCallback((chatIdToUpdate: string, isNewChat: boolean = false) => {
+    if (isApiKeyMissing) return;
     const chatToUpdate = allChats.find(c => c.id === chatIdToUpdate);
     const messagesForContext = chatToUpdate ? chatToUpdate.messages : (chatIdToUpdate === currentChatId ? messages : []);
 
@@ -232,25 +225,28 @@ const App: React.FC = () => {
       clearTimeout(titleUpdateTimeout.current);
     }
     titleUpdateTimeout.current = window.setTimeout(processTitleUpdateQueue, 2000); 
-  }, [allChats, currentChatId, messages, processTitleUpdateQueue, appInitialWelcomeTextRef]);
+  }, [allChats, currentChatId, messages, processTitleUpdateQueue, appInitialWelcomeTextRef, isApiKeyMissing]);
 
   const reinitializeChatForCurrentSettings = useCallback(() => {
+    if (isApiKeyMissing) return;
     resetChatSession(); 
     const history = mapMessagesToGeminiHistory(messages, appInitialWelcomeTextRef.current);
     console.log("Reinitializing chat session. Model:", currentChatModel, "Thinking Budget:", thinkingBudget, "History entries:", history.length);
-    initializeChatSession(currentChatModel, history, thinkingBudget); // Removed video config param
-  }, [messages, currentChatModel, thinkingBudget, appInitialWelcomeTextRef]);
+    initializeChatSession(currentChatModel, history, thinkingBudget);
+  }, [messages, currentChatModel, thinkingBudget, appInitialWelcomeTextRef, isApiKeyMissing]);
 
 
   useEffect(() => {
+    if (isApiKeyMissing) return;
     if (currentChatId && currentView === 'chat') { 
       console.log("Relevant state changed, reinitializing chat session. Triggered by change in model, budget, or chat ID.");
       reinitializeChatForCurrentSettings();
     }
-  }, [currentChatModel, thinkingBudget, currentChatId, reinitializeChatForCurrentSettings, currentView]);
+  }, [currentChatModel, thinkingBudget, currentChatId, reinitializeChatForCurrentSettings, currentView, isApiKeyMissing]);
 
 
   const startNewChat = useCallback(() => {
+    if (isApiKeyMissing) return;
     resetChatSession();
     const newChatId = `chat-${Date.now()}`;
     appInitialWelcomeTextRef.current = createAppInitialWelcomeText();
@@ -273,11 +269,11 @@ const App: React.FC = () => {
     setCurrentView('chat'); 
     setTextToSummarizeForEditor(null); 
     if (isSidebarOpen) setIsSidebarOpen(false);
-  }, [isSidebarOpen]);
+  }, [isSidebarOpen, isApiKeyMissing]);
 
 
   const handleSendMessage = async (inputText: string) => {
-    if (!inputText.trim() || isLoading) return;
+    if (isApiKeyMissing || !inputText.trim() || isLoading) return;
 
     setError(null);
     setIsLoading(true);
@@ -321,7 +317,7 @@ const App: React.FC = () => {
     try {
       const historyForChat = mapMessagesToGeminiHistory(updatedMessagesWithUser, appInitialWelcomeTextRef.current);
       if (messages.length === 1 && messages[0].text === appInitialWelcomeTextRef.current) {
-         initializeChatSession(currentChatModel, historyForChat.slice(0, -1), thinkingBudget); // Removed video config
+         initializeChatSession(currentChatModel, historyForChat.slice(0, -1), thinkingBudget);
       }
 
       const stream = await sendMessageToChatStream(inputText);
@@ -376,14 +372,11 @@ const App: React.FC = () => {
     }
     
     setIsLoading(false);
-
-    // Image and Video generation command parsing and handling removed
   };
 
-  // handleImageGeneration function removed
-  // handleVideoGeneration function removed
 
   const switchChat = (chatId: string) => {
+    if (isApiKeyMissing) return;
     const chatToLoad = allChats.find(c => c.id === chatId);
     if (chatToLoad) {
       setMessages(chatToLoad.messages);
@@ -403,6 +396,7 @@ const App: React.FC = () => {
   };
   
   const deleteChat = (chatIdToDelete: string) => {
+    if (isApiKeyMissing) return;
     const updatedChats = allChats.filter(c => c.id !== chatIdToDelete);
     setAllChats(updatedChats);
     if (currentChatId === chatIdToDelete) {
@@ -415,24 +409,30 @@ const App: React.FC = () => {
   };
 
   const currentChatTitle = useMemo(() => {
+    if (isApiKeyMissing) return "NeuraMorphosis Chat";
     const chat = allChats.find(c => c.id === currentChatId);
     if (isTitleLoading && (!chat || !chat.title || chat.title === "New Chat")) {
         return "Generating title...";
     }
     return chat?.title || "NeuraMorphosis Chat";
-  }, [currentChatId, allChats, isTitleLoading]);
+  }, [currentChatId, allChats, isTitleLoading, isApiKeyMissing]);
 
   const isEffectivelyNewChat = useMemo(() => {
+    if (isApiKeyMissing) return false;
     return messages.length === 1 &&
            messages[0].sender === Sender.AI &&
            messages[0].text === appInitialWelcomeTextRef.current &&
-           !isLoading; // Removed image/video checks
-  }, [messages, appInitialWelcomeTextRef, isLoading]);
+           !isLoading;
+  }, [messages, appInitialWelcomeTextRef, isLoading, isApiKeyMissing]);
 
-  const openSummarizeModal = () => setIsSummarizeModalOpen(true); 
+  const openSummarizeModal = () => {
+    if (isApiKeyMissing) return;
+    setIsSummarizeModalOpen(true);
+  }
   const closeSummarizeModal = () => setIsSummarizeModalOpen(false);
 
   const handleOpenSummarizationEditor = (textToSummarize: string) => {
+    if (isApiKeyMissing) return;
     if (!textToSummarize.trim()) {
       setError("Cannot summarize empty text.");
       console.error("Attempted to open summarization editor with empty text.");
@@ -449,6 +449,25 @@ const App: React.FC = () => {
     setCurrentView('chat');
     setTextToSummarizeForEditor(null);
   };
+
+  if (isApiKeyMissing) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[var(--background)] text-[var(--text-primary)] p-6 sm:p-8 text-center">
+        <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" />
+        <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-[var(--text-primary)]">API Key Not Configured</h1>
+        <p className="text-sm sm:text-lg text-[var(--text-secondary)] mb-1">
+          The <code>API_KEY</code> environment variable is missing or not accessible.
+        </p>
+        <p className="text-sm sm:text-md text-[var(--text-secondary)] max-w-md">
+          This application requires a valid Google Generative AI API key to function.
+          Please ensure it is correctly set up in your deployment environment or local <code>.env</code> file.
+        </p>
+         <p className="text-xs text-[var(--text-placeholder)] mt-6">
+            Refer to the project documentation for setup instructions.
+          </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex h-screen bg-[var(--background)] text-[var(--text-primary)] overflow-hidden`}>
@@ -535,9 +554,8 @@ const App: React.FC = () => {
               <h2 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)] truncate ml-2 md:ml-0">
                 {currentChatTitle}
               </h2>
-               {/* Empty div for spacing, to balance title with potential menu button */}
               <div className="w-6 h-6 md:hidden"></div>
-              <div className="hidden md:block w-0"></div> {/* Spacer for desktop */}
+              <div className="hidden md:block w-0"></div> 
             </header>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gradient-to-br from-[var(--surface-2)] to-[var(--background)]" role="log">
@@ -579,7 +597,6 @@ const App: React.FC = () => {
             availableModels={availableChatModels}
             currentModel={currentChatModel}
             onSetModel={setCurrentChatModel}
-            // Image and video generation props removed
             theme={theme}
             onSetTheme={setTheme}
             customCSS={customCSS}
