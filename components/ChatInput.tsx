@@ -58,7 +58,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         bg-[var(--surface-glass)] rounded-full
         py-2 px-1 sm:px-1.5 
         transition-all duration-150 ease-in-out
-        backdrop-blur-lg border border-[var(--border-glass)]
+        backdrop-blur-xl border border-[var(--border-glass)]
       "
     >
       <textarea
@@ -91,7 +91,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           disabled:opacity-60 disabled:cursor-not-allowed 
           flex items-center justify-center 
           w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 
-          focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 focus:ring-offset-[var(--surface-glass)]
+          focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 focus:ring-offset-[var(--surface-2)]
         "
         aria-label={isLoading ? "Sending message" : "Send message"}
       >
