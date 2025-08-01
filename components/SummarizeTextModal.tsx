@@ -115,7 +115,7 @@ const SummarizeTextModal: React.FC<SummarizeTextModalProps> = ({ isOpen, onClose
       aria-modal="true"
       aria-labelledby="summarize-modal-title"
     >
-      <div className="bg-[var(--surface-1)] text-[var(--text-primary)] p-5 sm:p-6 rounded-xl shadow-2xl w-full max-w-lg border border-[var(--border-color)]">
+      <div className="bg-[var(--surface-1)] text-[var(--text-primary)] p-5 sm:p-6 rounded-xl w-full max-w-lg border border-[var(--border-color)]"> {/* shadow-2xl removed */}
         <div className="flex justify-between items-center mb-5 sm:mb-6">
           <h2 id="summarize-modal-title" className="text-lg sm:text-xl font-semibold">Summarize Text</h2>
           <button 
@@ -132,7 +132,7 @@ const SummarizeTextModal: React.FC<SummarizeTextModalProps> = ({ isOpen, onClose
             <button
               onClick={() => setActiveInputMethod('text')}
               className={`flex-1 py-1.5 px-2 sm:py-2 sm:px-3 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center justify-center space-x-1.5 sm:space-x-2
-                ${activeInputMethod === 'text' ? 'bg-[var(--primary)] text-[var(--text-on-primary)] shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'}`}
+                ${activeInputMethod === 'text' ? 'bg-[var(--primary)] text-[var(--text-on-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'}`} // shadow-sm removed from active
               aria-pressed={activeInputMethod === 'text'}
             >
               <Type className="h-[14px] w-[14px] sm:h-[16px] sm:w-[16px]" /> 
@@ -141,7 +141,7 @@ const SummarizeTextModal: React.FC<SummarizeTextModalProps> = ({ isOpen, onClose
             <button
               onClick={() => setActiveInputMethod('file')}
               className={`flex-1 py-1.5 px-2 sm:py-2 sm:px-3 rounded-md text-xs sm:text-sm font-medium transition-colors flex items-center justify-center space-x-1.5 sm:space-x-2
-                ${activeInputMethod === 'file' ? 'bg-[var(--primary)] text-[var(--text-on-primary)] shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'}`}
+                ${activeInputMethod === 'file' ? 'bg-[var(--primary)] text-[var(--text-on-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]'}`} // shadow-sm removed from active
               aria-pressed={activeInputMethod === 'file'}
             >
               <FileText className="h-[14px] w-[14px] sm:h-[16px] sm:w-[16px]" />

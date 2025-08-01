@@ -1,9 +1,13 @@
-import { StoredChat } from '../types';
+
+import { StoredChat, BaseTheme, AccentTheme } from '../types';
 
 const ALL_CHATS_KEY = 'neuramorphosis_allChats';
 const ACTIVE_CHAT_ID_KEY = 'neuramorphosis_activeChatId';
 const CUSTOM_CSS_KEY = 'neuramorphosis_customCSS';
-const THEME_KEY = 'neuramorphosis_theme';
+const BASE_THEME_KEY = 'neuramorphosis_baseTheme';
+const ACCENT_THEME_KEY = 'neuramorphosis_accentTheme';
+const TARGET_LANGUAGE_KEY = 'neuramorphosis_targetLanguage';
+
 
 export const saveChats = (chats: StoredChat[]): void => {
   try {
@@ -62,19 +66,53 @@ export const loadCustomCSS = (): string => {
   }
 };
 
-export const saveTheme = (theme: string): void => {
+export const saveBaseTheme = (theme: BaseTheme): void => {
   try {
-    localStorage.setItem(THEME_KEY, theme);
+    localStorage.setItem(BASE_THEME_KEY, theme);
   } catch (error) {
-    console.error("Error saving theme to localStorage:", error);
+    console.error("Error saving base theme to localStorage:", error);
   }
 };
 
-export const loadTheme = (): string | null => {
+export const loadBaseTheme = (): BaseTheme | null => {
   try {
-    return localStorage.getItem(THEME_KEY);
+    return localStorage.getItem(BASE_THEME_KEY) as BaseTheme | null;
   } catch (error) {
-    console.error("Error loading theme from localStorage:", error);
+    console.error("Error loading base theme from localStorage:", error);
+    return null;
+  }
+};
+
+export const saveAccentTheme = (theme: AccentTheme): void => {
+  try {
+    localStorage.setItem(ACCENT_THEME_KEY, theme);
+  } catch (error) {
+    console.error("Error saving accent theme to localStorage:", error);
+  }
+};
+
+export const loadAccentTheme = (): AccentTheme | null => {
+  try {
+    return localStorage.getItem(ACCENT_THEME_KEY) as AccentTheme | null;
+  } catch (error) {
+    console.error("Error loading accent theme from localStorage:", error);
+    return null;
+  }
+};
+
+export const saveTargetLanguage = (languageCode: string): void => {
+  try {
+    localStorage.setItem(TARGET_LANGUAGE_KEY, languageCode);
+  } catch (error) {
+    console.error("Error saving target language to localStorage:", error);
+  }
+};
+
+export const loadTargetLanguage = (): string | null => {
+  try {
+    return localStorage.getItem(TARGET_LANGUAGE_KEY);
+  } catch (error) {
+    console.error("Error loading target language from localStorage:", error);
     return null;
   }
 };

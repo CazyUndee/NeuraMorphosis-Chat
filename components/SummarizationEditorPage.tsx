@@ -4,18 +4,99 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { X, Download, MessageSquarePlus, SendHorizonal as SendHorizontal, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getFriendlyModelName } from '../services/geminiService'; 
 
 interface SummarizationEditorPageProps {
   originalText: string;
   onClose: () => void;
-  currentChatModelName: string;
+  currentChatModelName: string; 
 }
 
+// Helper to get raw text content from a markdown AST node
+const getNodeText = (node: any): string => {
+  if (!node) return '';
+  if (node.type === 'text') {
+    return node.value || '';
+  }
+  if (node.children && Array.isArray(node.children)) {
+    return node.children.map(getNodeText).join('');
+  }
+  return '';
+};
+
+// Helper to identify paragraphs that only contain bolded text, to treat them as headers.
+const isParagraphWithOnlyBold = (node: any): boolean => {
+    if (!node || node.type !== 'paragraph' || !node.children) return false;
+    
+    // Filter out empty text nodes (e.g., newlines) that the markdown-parser creates
+    const significantChildren = node.children.filter((child: any) => 
+        child.type === 'text' ? child.value.trim() !== '' : true
+    );
+    
+    if (significantChildren.length === 0) return false;
+
+    // Check if all significant children are 'strong' elements
+    return significantChildren.every(child => child.type === 'strong');
+};
+
 const followUpMarkdownComponents = {
-  p: ({node, ...props}: any) => <p className="mb-2 last:mb-0" {...props} />,
-  ul: ({node, ...props}: any) => <ul className="list-disc list-inside my-2 ml-4 space-y-1" {...props} />,
-  ol: ({node, ...props}: any) => <ol className="list-decimal list-inside my-2 ml-4 space-y-1" {...props} />,
+  p: ({node, ...props}: any) => {
+    const isHeader = isParagraphWithOnlyBold(node);
+    const textContent = getNodeText(node).trim();
+    if (textContent === '') {
+        return null;
+    }
+
+    return (
+      <div className="w-full">
+        <p 
+          className={isHeader ? "text-xl font-semibold mt-4 mb-2" : "mb-4"} 
+          {...props} 
+        />
+      </div>
+    );
+  },
+  strong: ({node, ...props}: any) => <strong className="font-semibold" {...props} />,
+  em: ({node, ...props}: any) => <em className="italic" {...props} />,
+  ul: ({node, ...props}: any) => <div className="w-full"><ul className="list-disc list-inside my-2 space-y-1 pl-4" {...props} /></div>,
+  ol: ({node, ...props}: any) => <div className="w-full"><ol className="list-decimal list-inside my-2 space-y-1 pl-4" {...props} /></div>,
+  li: ({node, ...props}: any) => {
+    // Do not render list items that are effectively empty (contain no visible text).
+    if (getNodeText(node).trim() === '') {
+      return null;
+    }
+    return <li className="mb-0.5" {...props} />;
+  },
   a: ({node, ...props}: any) => <a className="text-[var(--primary)] hover:text-[var(--primary-hover)] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+  pre: ({node, ...props}: any) => <div className="w-full"><pre className="bg-[var(--surface-1)] p-3 my-2 rounded-md overflow-x-auto text-base" {...props} /></div>,
+  code({ node, inline, className, children, ...props }: any) {
+    if (!inline) { // For block code
+      return (
+        <code className={`${className || ''} text-[var(--text-primary)] block`} {...props}>
+          {String(children).replace(/\n$/, '')}
+        </code>
+      );
+    }
+    // For inline code
+    return <code className="bg-[var(--surface-active)] text-[var(--text-accent)] px-1 py-0.5 rounded text-base" {...props}>{children}</code>;
+  },
+  h1: ({node, ...props}: any) => <div className="w-full"><h1 className="text-3xl font-bold my-4 text-[var(--text-primary)]" {...props} /></div>,
+  h2: ({node, ...props}: any) => <div className="w-full"><h2 className="text-2xl font-bold my-3 text-[var(--text-primary)]" {...props} /></div>,
+  h3: ({node, ...props}: any) => <div className="w-full"><h3 className="text-xl font-semibold my-2 text-[var(--text-primary)]" {...props} /></div>,
+  h4: ({node, ...props}: any) => <div className="w-full"><h4 className="text-lg font-semibold my-1.5 text-[var(--text-primary)]" {...props} /></div>,
+  h5: ({node, ...props}: any) => <div className="w-full"><h5 className="text-base font-bold my-1 text-[var(--text-primary)]" {...props} /></div>,
+  h6: ({node, ...props}: any) => <div className="w-full"><h6 className="text-sm font-medium my-1 text-[var(--text-primary)]" {...props} /></div>,
+  blockquote: ({node, ...props}: any) => <div className="w-full"><blockquote className="border-l-4 border-[var(--primary)] pl-4 italic my-2 text-[var(--text-secondary)]" {...props} /></div>,
+  table: ({node, ...props}: any) => (
+    <div className="w-full">
+      <div className="overflow-x-auto my-2 bg-[var(--surface-1)] p-2 rounded-md"> 
+        <table className="min-w-full border-collapse border border-[var(--border-color)] text-sm text-[var(--text-primary)]" {...props} />
+      </div>
+    </div>
+  ),
+  thead: ({node, ...props}: any) => <thead className="bg-[var(--surface-active)]" {...props} />,
+  th: ({node, ...props}: any) => <th className="border border-[var(--border-color)] px-3 py-2 text-left bg-[var(--surface-active)] font-semibold text-[var(--text-primary)]" {...props} />,
+  td: ({node, ...props}: any) => <td className="border border-[var(--border-color)] px-3 py-2" {...props} />,
 };
 
 const REPLACE_SUMMARY_COMMAND = "[replace_summary_with_new_text]";
@@ -68,7 +149,7 @@ const SummarizationEditorPage: React.FC<SummarizationEditorPageProps> = ({
     let firstChunkReceived = false;
     try {
       const stream = await aiInstance.models.generateContentStream({
-        model: currentChatModelName,
+        model: currentChatModelName, 
         contents: prompt,
       });
 
@@ -209,9 +290,9 @@ Your Response:`;
 
   return (
     <div className="flex flex-col h-screen bg-[var(--background)] text-[var(--text-primary)]">
-      <header className="bg-[var(--surface-1)] p-3 sm:p-4 shadow-md flex items-center justify-between z-20 h-[60px] flex-shrink-0">
+      <header className="bg-[var(--surface-1)] p-3 sm:p-4 flex items-center justify-between z-20 h-[60px] flex-shrink-0">
         <h2 id="summarizer-title" className="text-base sm:text-lg md:text-xl font-semibold text-[var(--text-primary)] ml-2">
-          Summarization Editor
+          Summarization Editor <span className="text-xs text-[var(--text-secondary)]">({getFriendlyModelName(currentChatModelName)})</span>
         </h2>
         <button
           onClick={onClose}
@@ -224,7 +305,7 @@ Your Response:`;
       </header>
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-5 sm:space-y-6" role="document" aria-labelledby="summarizer-title">
-        <section aria-labelledby="summary-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg shadow">
+        <section aria-labelledby="summary-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg">
           <div className="flex justify-between items-center mb-2 sm:mb-3">
             <h3 id="summary-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)]">
               {isSummarizing ? "Generating Summary..." : (isSummaryComplete ? "Editable Summary" : "Original Text")}
@@ -271,7 +352,7 @@ Your Response:`;
         </section>
 
         {showFollowUp && isSummaryComplete && (
-          <section aria-labelledby="follow-up-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg shadow transition-all duration-300 ease-in-out">
+          <section aria-labelledby="follow-up-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg transition-all duration-300 ease-in-out">
             <h3 id="follow-up-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-2 sm:mb-3">
               Follow-up Question
             </h3>
@@ -300,16 +381,18 @@ Your Response:`;
               <div className="mt-3 sm:mt-4 space-y-1.5 sm:space-y-2">
                 <h4 className="text-xs sm:text-sm font-semibold text-[var(--text-secondary)]">AI Response:</h4>
                 <div className="text-xs sm:text-sm text-[var(--text-primary)] bg-[var(--background)] p-2 sm:p-3 rounded-md border border-[var(--border-color-light)] min-h-[50px] sm:min-h-[60px]">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={followUpMarkdownComponents}>
-                        {followUpResponse || (isAskingFollowUp ? "AI is thinking..." : "")}
-                    </ReactMarkdown>
+                    <div className="flex flex-wrap">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={followUpMarkdownComponents}>
+                            {followUpResponse || (isAskingFollowUp ? "AI is thinking..." : "")}
+                        </ReactMarkdown>
+                    </div>
                 </div>
               </div>
             )}
           </section>
         )}
-         <footer className="text-[10px] xs:text-xs text-[var(--text-secondary)] pt-3 sm:pt-4 text-center border-t border-[var(--border-color)] mt-auto">
-          Summarization Editor - Powered by NeuraMorphosis AI
+         <footer className="text-[10px] xs:text-xs text-[var(--text-secondary)] pt-3 sm:pt-4 text-center mt-auto">
+          Summarization Editor - Powered by NeuraMorphosis AI ({getFriendlyModelName(currentChatModelName)})
         </footer>
       </div>
     </div>

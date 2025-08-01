@@ -4,8 +4,8 @@
   "private": true,
   "description": "A real-time chat application featuring NeuraMorphosis AI",
   "scripts": {
-    "build": "esbuild index.tsx --bundle --outfile=dist/assets/bundle.js --format=esm --platform=browser --jsx=automatic --loader:.png=dataurl --loader:.svg=dataurl --define:process.env.NODE_ENV='\"production\"' --define:process.env.API_KEY=$(node -pe \"JSON.stringify(process.env.API_KEY || '')\") && cp index.html dist/index.html && cp metadata.json dist/metadata.json",
-    "dev": "esbuild index.tsx --bundle --outfile=dist/assets/bundle.js --format=esm --platform=browser --jsx=automatic --loader:.png=dataurl --loader:.svg=dataurl --define:process.env.API_KEY=$(node -pe \"JSON.stringify(process.env.API_KEY || '')\") --servedir=dist --watch"
+    "build": "esbuild index.tsx --bundle --outfile=dist/assets/bundle.js --format=esm --platform=browser --jsx=automatic --loader:.png=dataurl --loader:.svg=dataurl --define:process.env.NODE_ENV='\"production\"' && cp index.html dist/index.html && cp metadata.json dist/metadata.json",
+    "dev": "esbuild index.tsx --bundle --outfile=dist/assets/bundle.js --format=esm --platform=browser --jsx=automatic --loader:.png=dataurl --loader:.svg=dataurl --servedir=dist --watch"
   },
   "dependencies": {
     "@google/genai": "^1.0.1",

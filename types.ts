@@ -4,13 +4,21 @@ export enum Sender {
   AI = 'ai',
 }
 
+export interface ThinkingDetails {
+  enabled: boolean; // Was thinking (budget > 0 or model default) active?
+  budget?: number;   // The thinking budget UI value used
+  modelUsed?: string; // The model for which thinking was configured
+  reasoningSupportedByModel: boolean; // True if the model supports budget-controlled thinking
+  // includeThoughts and actualThoughts removed
+}
+
 export interface ChatMessageContent {
   id: string;
   text: string;
   sender: Sender;
   isStreaming?: boolean;
   isError?: boolean;
-  // Image and video fields removed
+  thinkingDetails?: ThinkingDetails;
 }
 
 // For Gemini API chat history
@@ -34,3 +42,11 @@ export interface FileUploadError {
 }
 
 export type AppView = 'chat' | 'settings' | 'summarizer';
+
+export type BaseTheme = 'light' | 'dark';
+export type AccentTheme = 'default' | 'blue' | 'green'; // 'default' is purple
+
+export interface LanguageOption {
+  code: string; // e.g., 'en', 'es', 'fr', 'none'
+  name: string; // e.g., 'English', 'Spanish', 'French', 'None (No Translation)'
+}

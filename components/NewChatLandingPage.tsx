@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Lightbulb, Palette, ClipboardList, Brain, TextQuote } from 'lucide-react'; // ImageIcon removed
+import { Lightbulb, Palette, ClipboardList, Brain, TextQuote } from 'lucide-react'; 
 
 interface NewChatLandingPageProps {
   onPromptClick: (prompt: string) => void;
@@ -47,12 +47,6 @@ const starterPrompts: StarterPrompt[] = [
 const NewChatLandingPage: React.FC<NewChatLandingPageProps> = ({ onPromptClick, onOpenSummarizeModal }) => {
   
   const tools: ToolDefinition[] = [
-    // { // "Create an Image" tool removed
-    //   title: "Create an Image",
-    //   Icon: ImageIcon,
-    //   action: "I'd like to create an image.",
-    //   disabled: false, 
-    // },
     {
       title: "Summarize Text",
       Icon: TextQuote,
@@ -66,9 +60,9 @@ const NewChatLandingPage: React.FC<NewChatLandingPageProps> = ({ onPromptClick, 
       onClick={onClick}
       className={`
         bg-[var(--surface-3)] border border-[var(--border-color)] rounded-xl p-3 sm:p-4 md:p-5 text-left 
-        transition-colors w-full shadow-lg 
+        transition-colors w-full  
         hover:bg-[var(--surface-active)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--background)] focus:ring-[var(--ring)]
-      `}
+      `} // shadow-lg removed
       aria-label={`Starter prompt: ${title} - ${text}`}
     >
       <div className="flex items-start">
@@ -96,14 +90,14 @@ const NewChatLandingPage: React.FC<NewChatLandingPageProps> = ({ onPromptClick, 
       className={`
         flex items-center justify-center space-x-1.5 sm:space-x-2
         bg-[var(--surface-3)] border border-[var(--border-color)] rounded-full px-3 py-1.5 sm:px-4 sm:py-2 
-        text-xs sm:text-sm font-medium shadow-md
+        text-xs sm:text-sm font-medium 
         transition-colors
         focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-[var(--surface-2)] focus:ring-[var(--ring)]
         ${disabled 
           ? 'opacity-60 cursor-not-allowed bg-[var(--surface-1)] text-[var(--text-placeholder)]' 
           : 'text-[var(--text-primary)] hover:bg-[var(--surface-active)]'
         }
-      `}
+      `} // shadow-md removed
       aria-label={`Tool: ${title}${disabled ? ' (Coming Soon)' : ''}`}
       aria-disabled={disabled}
     >
@@ -117,7 +111,7 @@ const NewChatLandingPage: React.FC<NewChatLandingPageProps> = ({ onPromptClick, 
       <div 
         className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 animate-fade-in-slow"
         style={{
-          background: 'linear-gradient(to right, var(--primary), var(--text-accent), #F0D8FF)',
+          background: 'linear-gradient(to right, var(--primary), var(--text-accent), #F0D8FF)', // This gradient might need adjustment for light themes if it becomes hard to read
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
         }}

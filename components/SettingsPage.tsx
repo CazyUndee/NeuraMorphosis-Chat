@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { LEGACY_CHAT_MODEL_FOR_THINKING_CONFIG } from '../services/geminiService';
-import { X, Brain, SlidersHorizontal as BudgetIcon, ArrowLeft, Palette, Settings2 } from 'lucide-react'; // Sparkles, Film, ImageIcon removed
+import { THINKING_CONFIG_SUPPORTED_MODELS, MODEL_FRIENDLY_NAMES, getFriendlyModelName } from '../services/geminiService';
+import { BaseTheme, AccentTheme, LanguageOption } from '../types';
+import { X, Brain, SlidersHorizontal as BudgetIcon, ArrowLeft, Palette, Settings2, Languages } from 'lucide-react';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -10,14 +11,18 @@ interface SettingsPageProps {
   availableModels: string[];
   currentModel: string;
   onSetModel: (modelName: string) => void;
-  // Image and video generation props removed
-  theme: string;
-  onSetTheme: (theme: string) => void;
+  baseTheme: BaseTheme;
+  onSetBaseTheme: (theme: BaseTheme) => void;
+  accentTheme: AccentTheme;
+  onSetAccentTheme: (theme: AccentTheme) => void;
   customCSS: string;
   onSetCustomCSS: (css: string) => void;
+  targetLanguage: string;
+  onSetTargetLanguage: (languageCode: string) => void;
+  supportedLanguages: LanguageOption[];
 }
 
-type SettingsCategory = 'ai' | 'appearance'; // 'features' removed
+type SettingsCategory = 'ai' | 'appearance';
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
   onClose,
@@ -26,11 +31,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   availableModels,
   currentModel,
   onSetModel,
-  // Image and video generation props destructured here are removed
-  theme,
-  onSetTheme,
+  baseTheme,
+  onSetBaseTheme,
+  accentTheme,
+  onSetAccentTheme,
   customCSS,
   onSetCustomCSS,
+  targetLanguage,
+  onSetTargetLanguage,
+  supportedLanguages,
 }) => {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('ai');
 
@@ -42,23 +51,38 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const isChatModelEffectivelyAvailable = currentModel && availableModels.includes(currentModel);
-  const isThinkingBudgetApplicable = currentModel === LEGACY_CHAT_MODEL_FOR_THINKING_CONFIG && isChatModelEffectivelyAvailable;
+  const isThinkingBudgetApplicable = isChatModelEffectivelyAvailable && THINKING_CONFIG_SUPPORTED_MODELS.includes(currentModel);
+  const currentFriendlyModelName = getFriendlyModelName(currentModel);
 
-  const themeOptions = [
-    { label: 'Default (Purple)', value: 'default' },
+  const baseThemeOptions: { label: string; value: BaseTheme }[] = [
+    { label: 'Dark Mode', value: 'dark' },
+    { label: 'Light Mode', value: 'light' },
+  ];
+
+  const accentThemeOptions: { label: string; value: AccentTheme }[] = [
+    { label: 'Default Purple', value: 'default' },
     { label: 'Ocean Blue', value: 'blue' },
     { label: 'Forest Green', value: 'green' },
   ];
 
   const categoryConfig: { id: SettingsCategory; label: string; Icon: React.ElementType }[] = [
-    { id: 'ai', label: 'AI Config', Icon: Brain },
-    // { id: 'features', label: 'Features', Icon: Sparkles }, // Features category removed
+    { id: 'ai', label: 'AI & Language', Icon: Brain },
     { id: 'appearance', label: 'Appearance', Icon: Palette },
   ];
 
+  let thinkingBudgetDescription = "";
+  if (!isChatModelEffectivelyAvailable) {
+    thinkingBudgetDescription = "Thinking budget is not applicable as the model is unavailable."
+  } else if (!isThinkingBudgetApplicable) {
+    thinkingBudgetDescription = `Thinking budget is not applicable for the '${currentFriendlyModelName}' model. This setting only affects 'Flash' models.`;
+  } else { 
+     thinkingBudgetDescription = `Controls AI thinking effort for the '${currentFriendlyModelName}' model. The 0-5 slider value is used directly. '0' disables thinking for the fastest response. Higher values (1-5) allow for more processing time, which may improve response quality.`;
+  }
+
+
   return (
     <div className="flex flex-col h-full bg-[var(--background)] text-[var(--text-primary)]">
-      <header className="bg-[var(--surface-1)] p-3 sm:p-4 shadow-md flex items-center justify-between z-10 h-[60px] flex-shrink-0">
+      <header className="bg-[var(--surface-1)] p-3 sm:p-4 flex items-center justify-between z-10 h-[60px] flex-shrink-0"> {/* shadow-md removed */}
         <button
           onClick={onClose}
           className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--surface-3)] focus:outline-none focus:ring-1 focus:ring-[var(--ring)] flex items-center"
@@ -73,16 +97,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         <div className="w-10 sm:w-32 md:w-40"> {/* Spacer */} </div>
       </header>
 
-      <nav className="bg-[var(--surface-1)] border-b border-[var(--border-color)] shadow-sm">
+      <nav className="bg-[var(--surface-1)]"> {/* shadow-sm removed */}
         <div className="max-w-5xl mx-auto px-1 sm:px-2 md:px-4 lg:px-6">
           <div className="flex justify-around sm:justify-center sm:space-x-1 md:space-x-2">
             {categoryConfig.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center px-1.5 py-2.5 sm:px-2 sm:py-3 md:px-3 md:py-3.5 text-[11px] xs:text-xs sm:text-sm font-medium rounded-t-md transition-colors
+                className={`flex items-center px-1.5 py-2.5 sm:px-2 sm:py-3 md:px-3 md:py-3.5 text-[11px] xs:text-xs sm:text-sm font-medium transition-colors
                   ${activeCategory === cat.id 
-                    ? 'border-b-2 border-[var(--primary)] text-[var(--primary)] bg-[var(--surface-2)]' 
+                    ? 'text-[var(--primary)] bg-[var(--surface-2)]' 
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-3)]'
                   }
                   focus:outline-none focus:ring-1 focus:ring-[var(--ring)] focus:z-10
@@ -104,7 +128,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       >
         {activeCategory === 'ai' && (
           <div id="ai-settings-content" className="space-y-5 sm:space-y-6">
-            <section aria-labelledby="chat-model-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg shadow">
+            <section aria-labelledby="chat-model-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg"> {/* shadow removed */}
               <h3 id="chat-model-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-2 sm:mb-3 flex items-center">
                 <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
                 Chat Model
@@ -113,14 +137,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 <>
                   <select
                     id="model-select"
-                    value={currentModel}
+                    value={currentModel} 
                     onChange={(e) => onSetModel(e.target.value)}
                     className="w-full bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border-color-light)] rounded-md p-2 sm:p-2.5 focus:ring-1 focus:ring-[var(--ring)] focus:border-[var(--ring)] focus:outline-none text-xs sm:text-sm"
                     aria-label="Select chat model"
                   >
-                    {availableModels.map(model => (
-                      <option key={model} value={model}>
-                        {model}
+                    {availableModels.map(modelId => (
+                      <option key={modelId} value={modelId}>
+                        {getFriendlyModelName(modelId)} 
                       </option>
                     ))}
                   </select>
@@ -135,7 +159,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               )}
             </section>
 
-            <section aria-labelledby="thinking-budget-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg shadow">
+            <section aria-labelledby="thinking-budget-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg"> {/* shadow removed */}
               <h3 id="thinking-budget-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-2 sm:mb-3 flex items-center">
                 <BudgetIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
                  AI Thinking Budget
@@ -144,7 +168,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 <label htmlFor="thinking-budget-slider" className={`block text-xs sm:text-sm ${isThinkingBudgetApplicable ? 'text-[var(--text-primary)]' : 'text-[var(--text-placeholder)]'}`}>
                   Adjust thinking effort
                   {!isChatModelEffectivelyAvailable && <span className="text-[10px] xs:text-xs text-[var(--text-secondary)] ml-1">(Model Not Available)</span>}
-                  {isChatModelEffectivelyAvailable && !isThinkingBudgetApplicable && <span className="text-[10px] xs:text-xs text-[var(--text-secondary)] ml-1">(Not applicable for '{currentModel}')</span>}
+                  {isChatModelEffectivelyAvailable && !isThinkingBudgetApplicable && <span className="text-[10px] xs:text-xs text-[var(--text-secondary)] ml-1">(Not applicable for '{currentFriendlyModelName}')</span>}
                 </label>
                 <div className="flex items-center space-x-2 sm:space-x-3 pt-1">
                   <input
@@ -178,48 +202,101 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     {isThinkingBudgetApplicable ? thinkingBudget : '-'}
                   </span>
                 </div>
-                <p id="thinking-budget-description" className="text-[10px] xs:text-xs text-[var(--text-secondary)] mt-1.5 sm:mt-2">
-                  Controls AI thinking effort. 0 for fastest response (thinking disabled). Higher values (1-5) allow more processing. 
-                  Currently only applicable for the '{LEGACY_CHAT_MODEL_FOR_THINKING_CONFIG}' model.
+                <p id="thinking-budget-description" className="text-[10px] xs:text-xs text-[var(--text-secondary)] mt-1.5 sm:mt-2 whitespace-pre-line">
+                  {thinkingBudgetDescription}
+                </p>
+              </div>
+            </section>
+            
+            <section aria-labelledby="translation-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg"> {/* shadow removed */}
+              <h3 id="translation-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-2 sm:mb-3 flex items-center">
+                <Languages className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
+                Language & Translation
+              </h3>
+              <div>
+                <label htmlFor="translation-language-select" className="block text-xs sm:text-sm text-[var(--text-primary)] mb-1.5">
+                  Translate AI responses to:
+                </label>
+                <select
+                  id="translation-language-select"
+                  value={targetLanguage}
+                  onChange={(e) => onSetTargetLanguage(e.target.value)}
+                  className="w-full bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border-color-light)] rounded-md p-2 sm:p-2.5 focus:ring-1 focus:ring-[var(--ring)] focus:border-[var(--ring)] focus:outline-none text-xs sm:text-sm"
+                  aria-label="Select language for AI response translation"
+                >
+                  {supportedLanguages.map(lang => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] xs:text-xs text-[var(--text-secondary)] mt-1.5 sm:mt-2">
+                  If a language is selected (other than "None"), AI responses will be automatically translated to that language. Input is expected in English.
                 </p>
               </div>
             </section>
           </div>
         )}
-
-        {/* Features category content removed */}
         
         {activeCategory === 'appearance' && (
           <div id="appearance-settings-content" className="space-y-5 sm:space-y-6">
-            <section aria-labelledby="theme-color-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg shadow">
-              <h3 id="theme-color-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-3 sm:mb-4 flex items-center">
-                <Settings2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
-                Theme Color
+            <section aria-labelledby="base-theme-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg"> {/* shadow removed */}
+              <h3 id="base-theme-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-3 sm:mb-4 flex items-center">
+                <Palette className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
+                Base Theme
               </h3>
               <div className="flex flex-wrap gap-2 sm:gap-3">
-                {themeOptions.map(option => (
+                {baseThemeOptions.map(option => (
                   <button
                     key={option.value}
-                    onClick={() => onSetTheme(option.value)}
+                    onClick={() => onSetBaseTheme(option.value)}
                     className={`px-3 py-2 sm:px-4 sm:py-2.5 rounded-md text-xs sm:text-sm font-medium border transition-all
-                      ${theme === option.value 
+                      ${baseTheme === option.value 
                         ? 'bg-[var(--primary)] text-[var(--text-on-primary)] border-[var(--primary-hover)] ring-2 ring-[var(--ring)] ring-offset-1 ring-offset-[var(--surface-2)]' 
                         : 'bg-[var(--surface-3)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color-light)] hover:border-[var(--primary)]'
                       }
                       focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-1 focus:ring-offset-[var(--surface-2)]
                     `}
-                    aria-pressed={theme === option.value}
+                    aria-pressed={baseTheme === option.value}
                   >
                     {option.label}
                   </button>
                 ))}
               </div>
                <p className="text-[10px] xs:text-xs text-[var(--text-secondary)] mt-2 sm:mt-3">
-                  Changes the primary accent color of the application.
+                  Changes the overall light or dark appearance of the application.
                </p>
             </section>
 
-            <section aria-labelledby="custom-css-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg shadow">
+            <section aria-labelledby="accent-color-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg"> {/* shadow removed */}
+              <h3 id="accent-color-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-3 sm:mb-4 flex items-center">
+                <Settings2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
+                Accent Color
+              </h3>
+              <div className="flex flex-wrap gap-2 sm:gap-3">
+                {accentThemeOptions.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => onSetAccentTheme(option.value)}
+                    className={`px-3 py-2 sm:px-4 sm:py-2.5 rounded-md text-xs sm:text-sm font-medium border transition-all
+                      ${accentTheme === option.value 
+                        ? 'bg-[var(--primary)] text-[var(--text-on-primary)] border-[var(--primary-hover)] ring-2 ring-[var(--ring)] ring-offset-1 ring-offset-[var(--surface-2)]' 
+                        : 'bg-[var(--surface-3)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color-light)] hover:border-[var(--primary)]'
+                      }
+                      focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-1 focus:ring-offset-[var(--surface-2)]
+                    `}
+                    aria-pressed={accentTheme === option.value}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+               <p className="text-[10px] xs:text-xs text-[var(--text-secondary)] mt-2 sm:mt-3">
+                  Changes the primary accent color for buttons, highlights, etc.
+               </p>
+            </section>
+
+            <section aria-labelledby="custom-css-heading" className="bg-[var(--surface-2)] p-3 sm:p-4 rounded-lg"> {/* shadow removed */}
               <h3 id="custom-css-heading" className="text-sm sm:text-md font-semibold text-[var(--text-primary)] mb-2 sm:mb-3 flex items-center">
                 <Palette className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-[var(--primary)]" strokeWidth={1.5} aria-hidden="true" />
                 Custom Styles (Advanced)
@@ -240,7 +317,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
         )}
 
-        <footer className="text-[10px] xs:text-xs text-[var(--text-secondary)] pt-3 sm:pt-4 text-center border-t border-[var(--border-color)] mt-3 sm:mt-4">
+        <footer className="text-[10px] xs:text-xs text-[var(--text-secondary)] pt-3 sm:pt-4 text-center mt-3 sm:mt-4">
           Settings are applied globally or to the current chat context where applicable.
         </footer>
       </div>

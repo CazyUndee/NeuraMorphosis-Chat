@@ -11,18 +11,26 @@ declare global {
 }
 
 export const AVAILABLE_CHAT_MODELS = [
-  'gemini-2.5-flash-preview-04-17',
-  // 'gemini-2.5-pro-preview-05-06', // Removed
-  'gemini-2.5-flash-preview-05-20',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite',
 ];
 
-export const DEFAULT_CHAT_MODEL = 'gemini-2.5-flash-preview-04-17';
-export const LEGACY_CHAT_MODEL_FOR_THINKING_CONFIG = 'gemini-2.5-flash-preview-04-17';
+export const MODEL_FRIENDLY_NAMES: Record<string, string> = {
+  'gemini-2.5-flash': 'Flash (Fast & Efficient)',
+  'gemini-2.5-pro': 'Pro (Advanced & Powerful)',
+  'gemini-2.5-flash-lite': 'Flash Lite (Ultra Fast)',
+};
 
-// IMAGE_MODEL_NAME and VIDEO_MODEL_NAME removed
-const TITLE_GENERATION_MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
+export const getFriendlyModelName = (modelId: string): string => MODEL_FRIENDLY_NAMES[modelId] || modelId;
+
+export const DEFAULT_CHAT_MODEL = 'gemini-2.5-flash';
+
+export const THINKING_CONFIG_SUPPORTED_MODELS = [
+  'gemini-2.5-flash', // Flash model supports thinking config
+];
+
+const TITLE_GENERATION_MODEL_NAME = 'gemini-2.5-flash';
 
 let ai: GoogleGenAI;
 let chatSessionInstance: Chat | null = null;
@@ -36,14 +44,14 @@ const initializeAI = () => {
   }
 };
 
-const mapAppMessagesToGeminiHistoryForTitle = (messages: ChatMessageContent[], appInitialWelcomeText: string): ChatMessageHistoryItem[] => {
+const mapAppMessagesToGeminiHistoryForTitle = (messages: ChatMessageContent[], initialWelcomeTextBase: string): ChatMessageHistoryItem[] => {
   return messages
     .filter(msg => {
         if (msg.sender === Sender.User) return true;
         if (msg.sender === Sender.AI &&
-            !msg.text.startsWith("AI is viewing the image") && // Kept for legacy, though image generation is removed
-            !msg.text.startsWith("NeuraMorphosis AI is thinking deeply...") &&
-            msg.text.trim() !== appInitialWelcomeText.trim()
+            !msg.text.startsWith("AI is viewing the image") && 
+            !msg.text.startsWith("NeuraMorphosis AI is thinking deeply...") && 
+            !msg.text.startsWith(initialWelcomeTextBase) 
            ) {
             return true;
         }
@@ -64,13 +72,13 @@ const generateFallbackTitle = (chatMessages: ChatMessageContent[]): string => {
   return "Chat Conversation";
 };
 
-export const generateChatTitleWithAI = async (chatMessages: ChatMessageContent[], appInitialWelcomeText: string): Promise<string> => {
+export const generateChatTitleWithAI = async (chatMessages: ChatMessageContent[], initialWelcomeTextBase: string): Promise<string> => {
   initializeAI();
   if (!chatMessages || chatMessages.length === 0) {
     return "New Chat";
   }
 
-  const historyForTitle = mapAppMessagesToGeminiHistoryForTitle(chatMessages, appInitialWelcomeText);
+  const historyForTitle = mapAppMessagesToGeminiHistoryForTitle(chatMessages, initialWelcomeTextBase);
   if (historyForTitle.length === 0) {
     console.warn("Title generation: History for title is empty after filtering. Using fallback.");
     return generateFallbackTitle(chatMessages);
@@ -140,27 +148,34 @@ Title:`;
 export const initializeChatSession = (
   modelName: string,
   history?: ChatMessageHistoryItem[], 
-  thinkingBudget?: number
+  thinkingBudgetUiValue?: number 
 ): Chat => {
   initializeAI();
+  const friendlyModelName = getFriendlyModelName(modelName);
+  const currentModelToUse = AVAILABLE_CHAT_MODELS.includes(modelName) ? modelName : DEFAULT_CHAT_MODEL;
 
-  const chatConfig: { systemInstruction: string; thinkingConfig?: { thinkingBudget: number } } = {
-    systemInstruction: `You are NeuraMorphosis AI, a helpful and independent text-based chat assistant.
+
+  const chatConfig: { systemInstruction: string; thinkingConfig?: { thinkingBudget: number } } = { 
+    systemInstruction: `You are NeuraMorphosis AI, a helpful and independent text-based chat assistant. You are currently operating as the '${friendlyModelName}' model configuration.
 Provide helpful text-based responses.
 If asked about your capabilities, mention you are a text-based assistant.
+Respond in the language of the user's input if it is clear, otherwise default to English.
 `,
   };
 
-  if (modelName === LEGACY_CHAT_MODEL_FOR_THINKING_CONFIG) {
-    const effectiveThinkingBudget = thinkingBudget !== undefined ? thinkingBudget : 0;
-    chatConfig.thinkingConfig = { thinkingBudget: effectiveThinkingBudget };
-    console.log(`Chat session initialized with model: ${modelName}, thinking budget: ${effectiveThinkingBudget}`);
+  // Only apply thinkingConfig if the model is 'gemini-2.5-flash'
+  if (currentModelToUse === 'gemini-2.5-flash' && thinkingBudgetUiValue !== undefined) {
+      // The thinking budget is a direct 0-5 value from the UI for Flash. 0 disables it.
+      chatConfig.thinkingConfig = { 
+        thinkingBudget: thinkingBudgetUiValue,
+      };
+      console.log(`Chat session initialized for Flash model: ${currentModelToUse}. Applying thinkingConfig. Budget: ${chatConfig.thinkingConfig.thinkingBudget} (0-5 scale, 0 disables).`);
   } else {
-    console.log(`Chat session initialized with model: ${modelName}. Thinking config not applicable/omitted for this model.`);
+    console.log(`Chat session initialized with model: ${currentModelToUse} ('${friendlyModelName}'). Thinking config not applicable or budget not set.`);
   }
 
   chatSessionInstance = ai.chats.create({
-    model: modelName,
+    model: currentModelToUse,
     config: chatConfig,
     history: (history as Content[]) || [],
   });
@@ -171,11 +186,8 @@ export const sendMessageToChatStream = async (
   message: string | Part[]
 ): Promise<AsyncIterable<GenerateContentResponse>> => {
   if (!chatSessionInstance) {
-    console.warn("Chat session not initialized. Attempting to initialize with default model and settings.");
-    initializeChatSession(DEFAULT_CHAT_MODEL); 
-  }
-  if (!chatSessionInstance) {
-    throw new Error("Failed to initialize chat session for sending message.");
+    console.error("sendMessageToChatStream called but chatSessionInstance is null. This indicates an initialization lifecycle issue in the calling code (e.g., App.tsx).");
+    throw new Error("Chat session is not active. Please ensure the chat is properly initialized before sending messages.");
   }
   const partsForMessage: Part[] = typeof message === 'string' ? [{ text: message }] : message;
   return chatSessionInstance.sendMessageStream({ message: partsForMessage });
@@ -184,6 +196,3 @@ export const sendMessageToChatStream = async (
 export const resetChatSession = (): void => {
   chatSessionInstance = null;
 };
-
-// generateImageWithImagen function removed
-// generateVideoWithVeo function removed
