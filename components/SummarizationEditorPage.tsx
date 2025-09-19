@@ -1,6 +1,4 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { X, Download, MessageSquarePlus, SendHorizonal as SendHorizontal, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -61,7 +59,6 @@ const followUpMarkdownComponents = {
   ul: ({node, ...props}: any) => <div className="w-full"><ul className="list-disc list-inside my-2 space-y-1 pl-4" {...props} /></div>,
   ol: ({node, ...props}: any) => <div className="w-full"><ol className="list-decimal list-inside my-2 space-y-1 pl-4" {...props} /></div>,
   li: ({node, ...props}: any) => {
-    // Do not render list items that are effectively empty (contain no visible text).
     if (getNodeText(node).trim() === '') {
       return null;
     }
@@ -70,14 +67,13 @@ const followUpMarkdownComponents = {
   a: ({node, ...props}: any) => <a className="text-[var(--primary)] hover:text-[var(--primary-hover)] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
   pre: ({node, ...props}: any) => <div className="w-full"><pre className="bg-[var(--surface-1)] p-3 my-2 rounded-md overflow-x-auto text-base" {...props} /></div>,
   code({ node, inline, className, children, ...props }: any) {
-    if (!inline) { // For block code
+    if (!inline) {
       return (
         <code className={`${className || ''} text-[var(--text-primary)] block`} {...props}>
           {String(children).replace(/\n$/, '')}
         </code>
       );
     }
-    // For inline code
     return <code className="bg-[var(--surface-active)] text-[var(--text-accent)] px-1 py-0.5 rounded text-base" {...props}>{children}</code>;
   },
   h1: ({node, ...props}: any) => <div className="w-full"><h1 className="text-3xl font-bold my-4 text-[var(--text-primary)]" {...props} /></div>,
@@ -118,25 +114,38 @@ const SummarizationEditorPage: React.FC<SummarizationEditorPageProps> = ({
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [didFollowUpActAsReplacement, setDidFollowUpActAsReplacement] = useState<boolean>(false);
 
-
-  const [aiInstance, setAiInstance] = useState<GoogleGenAI | null>(null);
   const hasSummarizationStartedRef = useRef(false);
-  const isReplacingSummaryRef = useRef(false); 
+  const isReplacingSummaryRef = useRef(false);
 
-  useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.error('API_KEY environment variable not set for Summarization Editor.');
-      setSummaryError('Configuration error: API Key not found. Cannot summarize.');
-      return;
+  const streamFromProxy = async (type: 'summarize' | 'summarize-follow-up', prompt: string, model: string, onChunk: (text: string) => void) => {
+    const response = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload: { prompt, model } }),
+    });
+    
+    if (!response.ok || !response.body) {
+        let errorText = `API request failed with status ${response.status}`;
+        try {
+            const errorJson = await response.json();
+            errorText = errorJson.error || errorText;
+        } catch (e) { /* not json */ }
+        throw new Error(errorText);
     }
-    const newAiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    setAiInstance(newAiInstance);
-  }, []);
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        onChunk(decoder.decode(value));
+    }
+  };
 
   const handleSummarize = useCallback(async () => {
-    if (!aiInstance || !originalText.trim() || isSummarizing) {
+    if (!originalText.trim() || isSummarizing) {
       if (!originalText.trim()) setSummaryError('Original text is empty, nothing to summarize.');
-      else if (!aiInstance) setSummaryError('AI service not initialized.');
       return;
     }
 
@@ -147,25 +156,20 @@ const SummarizationEditorPage: React.FC<SummarizationEditorPageProps> = ({
     const prompt = `Concisely summarize the following text. Focus on extracting the key points and main narrative. Do not add any conversational fluff or introductory/concluding phrases like 'Here is the summary:' or 'In conclusion...'. Just provide the summary itself, ensuring it's suitable for direct display in a text editor.\n\nOriginal Text:\n${originalText}\n\nSummary:`;
     
     let firstChunkReceived = false;
+    let currentSummaryAccumulator = "";
+    
     try {
-      const stream = await aiInstance.models.generateContentStream({
-        model: currentChatModelName, 
-        contents: prompt,
-      });
+        await streamFromProxy('summarize', prompt, currentChatModelName, (textChunk) => {
+             if (!firstChunkReceived) {
+                setDisplayText(textChunk);
+                currentSummaryAccumulator = textChunk;
+                firstChunkReceived = true;
+            } else {
+                currentSummaryAccumulator += textChunk;
+                setDisplayText(currentSummaryAccumulator);
+            }
+        });
 
-      let currentSummaryAccumulator = "";
-      for await (const chunk of stream) {
-        if (chunk.text) {
-          if (!firstChunkReceived) {
-            setDisplayText(chunk.text); 
-            currentSummaryAccumulator = chunk.text;
-            firstChunkReceived = true;
-          } else {
-            currentSummaryAccumulator += chunk.text;
-            setDisplayText(currentSummaryAccumulator);
-          }
-        }
-      }
       if (!firstChunkReceived && currentSummaryAccumulator === "") {
          setDisplayText(""); 
          setSummaryError("AI returned an empty summary.");
@@ -177,17 +181,17 @@ const SummarizationEditorPage: React.FC<SummarizationEditorPageProps> = ({
       setIsSummarizing(false);
       setIsSummaryComplete(true);
     }
-  }, [aiInstance, originalText, currentChatModelName, isSummarizing]);
+  }, [originalText, currentChatModelName, isSummarizing]);
 
   useEffect(() => {
-    if (aiInstance && originalText && !hasSummarizationStartedRef.current && !isSummarizing) {
+    if (originalText && !hasSummarizationStartedRef.current && !isSummarizing) {
       hasSummarizationStartedRef.current = true;
       const timer = setTimeout(() => {
         handleSummarize();
       }, 500); 
       return () => clearTimeout(timer);
     }
-  }, [aiInstance, originalText, handleSummarize, isSummarizing]);
+  }, [originalText, handleSummarize, isSummarizing]);
 
 
   const handleExportSummary = () => {
@@ -206,8 +210,8 @@ const SummarizationEditorPage: React.FC<SummarizationEditorPageProps> = ({
   };
 
   const handleAskFollowUp = async () => {
-    if (!aiInstance || !followUpQuestion.trim() || !displayText.trim() || !isSummaryComplete) {
-      setFollowUpError('Cannot ask follow-up: AI service not ready, question is empty, or no summary context available.');
+    if (!followUpQuestion.trim() || !displayText.trim() || !isSummaryComplete) {
+      setFollowUpError('Cannot ask follow-up: Question is empty or no summary context available.');
       return;
     }
     setIsAskingFollowUp(true);
@@ -236,34 +240,30 @@ Your Response:`;
     let currentFollowUpTextAccumulator = "";
 
     try {
-      const stream = await aiInstance.models.generateContentStream({
-        model: currentChatModelName,
-        contents: followUpSystemPrompt,
-      });
-
-      for await (const chunk of stream) {
-        const textChunk = chunk.text;
-        if (textChunk) {
-          if (!isReplacingSummaryRef.current && textChunk.includes(REPLACE_SUMMARY_COMMAND)) {
+      await streamFromProxy('summarize-follow-up', followUpSystemPrompt, currentChatModelName, (textChunk) => {
+        if (!isReplacingSummaryRef.current && (currentFollowUpTextAccumulator + textChunk).includes(REPLACE_SUMMARY_COMMAND)) {
             isReplacingSummaryRef.current = true;
             setDidFollowUpActAsReplacement(true);
-            const textAfterCommand = textChunk.substring(textChunk.indexOf(REPLACE_SUMMARY_COMMAND) + REPLACE_SUMMARY_COMMAND.length).trimStart();
+            const combinedText = currentFollowUpTextAccumulator + textChunk;
+            const textAfterCommand = combinedText.substring(combinedText.indexOf(REPLACE_SUMMARY_COMMAND) + REPLACE_SUMMARY_COMMAND.length).trimStart();
+            currentFollowUpTextAccumulator = ""; // Clear conversational text
+            setFollowUpResponse("");
+            
             if (textAfterCommand) {
               revisedSummaryAccumulator += textAfterCommand;
               setDisplayText(revisedSummaryAccumulator);
             }
-            continue; 
-          }
+            return;
+        }
 
-          if (isReplacingSummaryRef.current) {
+        if (isReplacingSummaryRef.current) {
             revisedSummaryAccumulator += textChunk;
             setDisplayText(revisedSummaryAccumulator);
-          } else {
+        } else {
             currentFollowUpTextAccumulator += textChunk;
             setFollowUpResponse(currentFollowUpTextAccumulator);
-          }
         }
-      }
+      });
       if (isReplacingSummaryRef.current && revisedSummaryAccumulator === "") {
         setDisplayText("");
       }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChatMessageContent, Sender, StoredChat, ChatMessageHistoryItem, AppView, ThinkingDetails, BaseTheme, AccentTheme, LanguageOption } from './types';
 import ChatMessageItem from './components/ChatMessageItem';
@@ -8,9 +7,7 @@ import NewChatLandingPage from './components/NewChatLandingPage';
 import SummarizeTextModal from './components/SummarizeTextModal';
 import SummarizationEditorPage from './components/SummarizationEditorPage';
 import {
-  initializeChatSession,
   sendMessageToChatStream,
-  resetChatSession,
   generateChatTitleWithAI,
   AVAILABLE_CHAT_MODELS,
   DEFAULT_CHAT_MODEL,
@@ -18,8 +15,8 @@ import {
   getFriendlyModelName,
 } from './services/geminiService';
 import * as localStorageService from './services/localStorageService';
-import { GenerateContentResponse, Part } from "@google/genai";
-import { Menu, X, Trash2, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
+import { Part } from "@google/genai";
+import { Menu, X, Trash2, Settings as SettingsIcon } from 'lucide-react';
 
 const INITIAL_AI_WELCOME_TEXT_BASE = "Hello! I'm NeuraMorphosis AI."; 
 
@@ -36,9 +33,12 @@ const createNewWelcomeMessage = (modelIdForWelcome: string): ChatMessageContent 
   isStreaming: false,
 });
 
-const mapMessagesToGeminiHistory = (messages: ChatMessageContent[], initialWelcomeTextBaseForFiltering: string): ChatMessageHistoryItem[] => {
+const mapMessagesToGeminiHistory = (messages: ChatMessageContent[]): ChatMessageHistoryItem[] => {
   const history: ChatMessageHistoryItem[] = [];
   for (const msg of messages) {
+    if (msg.sender === Sender.AI && msg.text.startsWith(INITIAL_AI_WELCOME_TEXT_BASE)) {
+        continue;
+    }
     let textForHistory = msg.text;
     if (textForHistory.trim() === "") continue;
 
@@ -82,7 +82,6 @@ const SUPPORTED_LANGUAGES: LanguageOption[] = [
 
 
 export const App: React.FC = () => {
-  const [isApiKeyMissing] = useState<boolean>(!process.env.API_KEY);
   const appInitialWelcomeTextRef = useRef(createAppInitialWelcomeText(DEFAULT_CHAT_MODEL));
 
   const [messages, setMessages] = useState<ChatMessageContent[]>(() => [createNewWelcomeMessage(DEFAULT_CHAT_MODEL)]);
@@ -151,7 +150,6 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isApiKeyMissing) return;
     const loadedChats = localStorageService.loadChats();
     setAllChats(loadedChats);
     const activeId = localStorageService.loadActiveChatId();
@@ -170,40 +168,35 @@ export const App: React.FC = () => {
     } else {
       startNewChat();
     }
-  }, [isApiKeyMissing, currentChatModel]); // Cannot add startNewChat directly due to its own dependencies
+  }, [currentChatModel]); // Cannot add startNewChat directly due to its own dependencies
 
   useEffect(() => {
-    if (isApiKeyMissing) return;
     localStorageService.saveChats(allChats);
-  }, [allChats, isApiKeyMissing]);
+  }, [allChats]);
 
   useEffect(() => {
-    if (isApiKeyMissing) return;
     localStorageService.saveActiveChatId(currentChatId);
-  }, [currentChatId, isApiKeyMissing]);
+  }, [currentChatId]);
 
   const isEffectivelyNewChat = useMemo(() => {
-    if (isApiKeyMissing) return false;
-    return messages.length === 1 &&
-           messages[0].sender === Sender.AI &&
-           messages[0].text === appInitialWelcomeTextRef.current &&
+    return messages.length <= 1 &&
+           (!messages[0] || (messages[0].sender === Sender.AI && messages[0].text.startsWith(INITIAL_AI_WELCOME_TEXT_BASE))) &&
            !isLoading;
-  }, [messages, appInitialWelcomeTextRef, isLoading, isApiKeyMissing]);
+  }, [messages, isLoading]);
 
   useEffect(() => {
-    if (isApiKeyMissing) return;
     if (currentView === 'chat') {
       if (!isEffectivelyNewChat) { 
         scrollToBottom("auto");
       }
     }
-  }, [messages, isLoading, currentView, isApiKeyMissing, isEffectivelyNewChat]);
+  }, [messages, isLoading, currentView, isEffectivelyNewChat]);
 
   const titleUpdateQueue = useRef<ChatContextForTitleUpdate | null>(null);
   const titleUpdateTimeout = useRef<number | null>(null);
 
   const processTitleUpdateQueue = useCallback(async () => {
-    if (isApiKeyMissing || !titleUpdateQueue.current) return;
+    if (!titleUpdateQueue.current) return;
 
     const { id: chatIdForTitle, isNew, messagesForContext } = titleUpdateQueue.current;
     titleUpdateQueue.current = null;
@@ -234,11 +227,9 @@ export const App: React.FC = () => {
     } finally {
       setIsTitleLoading(false);
     }
-  }, [currentChatId, isApiKeyMissing]);
+  }, [currentChatId]);
 
   const scheduleTitleUpdate = useCallback((chatIdToUpdate: string, isNewChat: boolean = false) => {
-    if (isApiKeyMissing) return;
-
     const messagesForContext = chatIdToUpdate === currentChatId
                                ? messages
                                : (allChats.find(c => c.id === chatIdToUpdate)?.messages || []);
@@ -255,38 +246,9 @@ export const App: React.FC = () => {
       clearTimeout(titleUpdateTimeout.current);
     }
     titleUpdateTimeout.current = window.setTimeout(processTitleUpdateQueue, 2000);
-  }, [allChats, currentChatId, messages, processTitleUpdateQueue, isApiKeyMissing]);
-
-  const reinitializeChatForCurrentSettings = useCallback(() => {
-    if (isApiKeyMissing) return;
-    resetChatSession();
-    const history = mapMessagesToGeminiHistory(messages, INITIAL_AI_WELCOME_TEXT_BASE);
-    console.log("Reinitializing chat session. Model:", currentChatModel, "Thinking Budget (UI Value):", thinkingBudget, "History entries:", history.length);
-    initializeChatSession(currentChatModel, history, thinkingBudget);
-  }, [messages, currentChatModel, thinkingBudget, isApiKeyMissing]);
-
-
-  useEffect(() => {
-    if (isApiKeyMissing) return;
-    if (currentChatId && currentView === 'chat' && messages.length > 0) { 
-      console.log("Relevant state changed, reinitializing chat session.");
-      reinitializeChatForCurrentSettings();
-    } else if (currentChatId && currentView === 'chat' && messages.length === 0) {
-      resetChatSession(); 
-      console.log("Chat is empty, session reset. Will initialize on next message.");
-    }
-  // Omitting `messages.length` from deps array of this specific useEffect as it was causing re-initialization on every character typed by AI.
-  // Re-initialization logic is complex and primarily tied to model/budget changes or loading a new chat.
-  // The crucial part `mapMessagesToGeminiHistory(messages, ...)` in reinitializeChatForCurrentSettings *does* use the current messages.
-  // If `messages` itself triggers re-init, it can conflict with streaming.
-  // This needs careful observation for any regressions. `messages.length` was removed here previously to handle such an issue.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentChatModel, thinkingBudget, currentChatId, reinitializeChatForCurrentSettings, currentView, isApiKeyMissing]); 
-
-
+  }, [allChats, currentChatId, messages, processTitleUpdateQueue]);
+  
   const startNewChat = useCallback(() => {
-    if (isApiKeyMissing) return;
-    resetChatSession();
     const newChatId = `chat-${Date.now()}`;
     appInitialWelcomeTextRef.current = createAppInitialWelcomeText(currentChatModel);
     const welcomeMessage = createNewWelcomeMessage(currentChatModel);
@@ -308,11 +270,11 @@ export const App: React.FC = () => {
     setCurrentView('chat');
     setTextToSummarizeForEditor(null);
     if (isSidebarOpen) setIsSidebarOpen(false);
-  }, [isSidebarOpen, isApiKeyMissing, currentChatModel]);
+  }, [isSidebarOpen, currentChatModel]);
 
 
   const handleSendMessage = async (inputText: string) => {
-    if (isApiKeyMissing || !inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading) return;
 
     setError(null);
     setIsLoading(true);
@@ -324,16 +286,8 @@ export const App: React.FC = () => {
       sender: Sender.User,
     };
 
-    let currentMessagesSnapshot = [...messages];
-    let baseMessagesForThisTurn = [...messages];
-
-    if (
-      currentMessagesSnapshot.length === 1 &&
-      currentMessagesSnapshot[0].sender === Sender.AI &&
-      currentMessagesSnapshot[0].text === appInitialWelcomeTextRef.current
-    ) {
-      baseMessagesForThisTurn = []; 
-    }
+    let baseMessagesForThisTurn = isEffectivelyNewChat ? [] : [...messages];
+    
     const updatedMessagesWithUser = [...baseMessagesForThisTurn, userMessage];
     setMessages(updatedMessagesWithUser);
 
@@ -346,8 +300,7 @@ export const App: React.FC = () => {
           return chat;
         })
       );
-      const chatForTitleCheck = allChats.find(c => c.id === currentChatId);
-      if (chatForTitleCheck && chatForTitleCheck.title === "New Chat" && baseMessagesForThisTurn.length === 0) { 
+      if (isEffectivelyNewChat) { 
         scheduleTitleUpdate(currentChatId, true); 
       }
     }
@@ -357,7 +310,7 @@ export const App: React.FC = () => {
     let thinkingDetailsForMessage: ThinkingDetails | undefined = undefined;
     if (THINKING_CONFIG_SUPPORTED_MODELS.includes(currentChatModel)) {
         thinkingDetailsForMessage = {
-            enabled: thinkingBudget > 0, // Thinking is enabled if budget is not 0 for supported models.
+            enabled: thinkingBudget > 0,
             budget: thinkingBudget,
             modelUsed: currentChatModel,
             reasoningSupportedByModel: true,
@@ -376,21 +329,14 @@ export const App: React.FC = () => {
     let accumulatedRegularText = "";
 
     try {
-      const historyForChatApi = mapMessagesToGeminiHistory(baseMessagesForThisTurn, INITIAL_AI_WELCOME_TEXT_BASE);
+      const historyForChatApi = mapMessagesToGeminiHistory(updatedMessagesWithUser);
 
-      if (baseMessagesForThisTurn.length === 0) {
-         console.log("Initializing chat session for the first user message (after welcome removal). API History:", historyForChatApi);
-         initializeChatSession(currentChatModel, historyForChatApi, thinkingBudget); 
-      } else {
-        const currentFullHistory = mapMessagesToGeminiHistory(updatedMessagesWithUser, INITIAL_AI_WELCOME_TEXT_BASE);
-        // Pass history *excluding* the latest user message because sendMessageToChatStream will add it.
-        // Also exclude the current AI placeholder message.
-        const historyForSession = currentFullHistory.slice(0, -1); 
-        initializeChatSession(currentChatModel, historyForSession, thinkingBudget); 
-        console.log("Ensuring chat session active. Current history length for API (excluding current user and AI placeholder):", historyForSession.length);
-      }
-
-      const stream = await sendMessageToChatStream(inputText);
+      const stream = await sendMessageToChatStream(
+          inputText,
+          historyForChatApi.slice(0, -1), // History excluding the current user message
+          currentChatModel,
+          thinkingBudget
+      );
       
       for await (const chunk of stream) {
         const textContent = chunk.text;
@@ -398,37 +344,21 @@ export const App: React.FC = () => {
           accumulatedRegularText += textContent;
           setMessages(prev =>
             prev.map(msg =>
-              msg.id === aiResponseId ? {
-                ...msg,
-                text: accumulatedRegularText,
-                isStreaming: true,
-                thinkingDetails: msg.thinkingDetails,
-              } : msg
+              msg.id === aiResponseId ? { ...msg, text: accumulatedRegularText } : msg
             )
           );
         }
       }
 
-      // After stream is complete
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === aiResponseId ? {
-            ...msg,
-            text: accumulatedRegularText,
-            isStreaming: false, 
-            thinkingDetails: msg.thinkingDetails,
-          } : msg
-        )
-      );
-
     } catch (e: any) {
       console.error("Error during chat stream:", e);
-      setError(`Error: ${e.message || "Failed to get response from AI."}`);
+      const errorMessage = `Error: ${e.message || "Failed to get response from AI."}`;
+      setError(errorMessage);
       setMessages(prev =>
         prev.map(msg =>
           msg.id === aiResponseId ? {
             ...msg,
-            text: `Error: ${e.message || "Failed to get response from AI."}`,
+            text: errorMessage,
             isError: true,
             isStreaming: false
           } : msg
@@ -436,6 +366,17 @@ export const App: React.FC = () => {
       );
       setIsLoading(false);
       return;
+    } finally {
+        // Final update after stream completes, to turn off streaming indicator
+        setMessages(prev =>
+            prev.map(msg =>
+            msg.id === aiResponseId ? {
+                ...msg,
+                text: accumulatedRegularText,
+                isStreaming: false, 
+            } : msg
+            )
+        );
     }
     
     let finalAiMessage: ChatMessageContent = {
@@ -473,7 +414,6 @@ export const App: React.FC = () => {
 
 
   const switchChat = (chatId: string) => {
-    if (isApiKeyMissing) return;
     const chatToLoad = allChats.find(c => c.id === chatId);
     if (chatToLoad) {
       setMessages(chatToLoad.messages);
@@ -493,7 +433,6 @@ export const App: React.FC = () => {
   };
 
   const deleteChat = (chatIdToDelete: string) => {
-    if (isApiKeyMissing) return;
     const updatedChats = allChats.filter(c => c.id !== chatIdToDelete);
     setAllChats(updatedChats);
     if (currentChatId === chatIdToDelete) {
@@ -506,7 +445,6 @@ export const App: React.FC = () => {
   };
 
   const currentChatTitle = useMemo(() => {
-    if (isApiKeyMissing) return "NeuraMorphosis Chat";
     const chat = allChats.find(c => c.id === currentChatId);
     if (isTitleLoading && (!chat || !chat.title || chat.title === "New Chat")) {
         return "Generating title...";
@@ -517,17 +455,15 @@ export const App: React.FC = () => {
       }
     }
     return chat?.title || `Chat with ${getFriendlyModelName(currentChatModel)}`;
-  }, [currentChatId, allChats, isTitleLoading, isApiKeyMissing, currentChatModel, messages, isEffectivelyNewChat]);
+  }, [currentChatId, allChats, isTitleLoading, currentChatModel, messages, isEffectivelyNewChat]);
 
 
   const openSummarizeModal = () => {
-    if (isApiKeyMissing) return;
     setIsSummarizeModalOpen(true);
   }
   const closeSummarizeModal = () => setIsSummarizeModalOpen(false);
 
   const handleOpenSummarizationEditor = (textToSummarize: string) => {
-    if (isApiKeyMissing) return;
     if (!textToSummarize.trim()) {
       setError("Cannot summarize empty text.");
       console.error("Attempted to open summarization editor with empty text.");
@@ -544,25 +480,6 @@ export const App: React.FC = () => {
     setCurrentView('chat');
     setTextToSummarizeForEditor(null);
   };
-
-  if (isApiKeyMissing) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[var(--background)] text-[var(--text-primary)] p-6 sm:p-8 text-center">
-        <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" />
-        <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-[var(--text-primary)]">API Key Not Configured</h1>
-        <p className="text-sm sm:text-lg text-[var(--text-secondary)] mb-1">
-          The <code>API_KEY</code> environment variable is missing or not accessible.
-        </p>
-        <p className="text-sm sm:text-md text-[var(--text-secondary)] max-w-md">
-          This application requires a valid Google Generative AI API key to function.
-          Please ensure it is correctly set up in your deployment environment or local <code>.env</code> file.
-        </p>
-         <p className="text-xs text-[var(--text-placeholder)] mt-6">
-            Refer to the project documentation for setup instructions.
-          </p>
-      </div>
-    );
-  }
 
   return (
     <div className={`flex h-screen text-[var(--text-primary)] overflow-hidden`}>
@@ -595,7 +512,7 @@ export const App: React.FC = () => {
                 key={chat.id}
                 className={`flex items-center justify-between rounded-md cursor-pointer group transition-colors duration-150
                   ${currentChatId === chat.id
-                    ? 'bg-[var(--surface-active)] text-[var(--text-on-primary)] border-l-4 border-[var(--primary)] py-2 pr-2 pl-1.5 sm:py-2.5 sm:pr-2.5 sm:pl-1.5'
+                    ? 'bg-[var(--surface-active)] text-[var(--text-primary)] border-l-4 border-[var(--primary)] py-2 pr-2 pl-1.5 sm:py-2.5 sm:pr-2.5 sm:pl-1.5'
                     : 'p-2 sm:p-2.5 hover:bg-[var(--surface-3)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-l-4 border-transparent'
                   }`}
                 onClick={() => switchChat(chat.id)}

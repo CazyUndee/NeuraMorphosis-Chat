@@ -1,14 +1,5 @@
-
-import { GoogleGenAI, Chat, GenerateContentResponse, Part, Content } from "@google/genai";
+import { GenerateContentResponse, Part } from "@google/genai";
 import { ChatMessageHistoryItem, ChatMessageContent, Sender } from '../types';
-
-declare global {
-  namespace NodeJS {
-    interface ProcessEnv {
-      API_KEY?: string;
-    }
-  }
-}
 
 export const AVAILABLE_CHAT_MODELS = [
   'gemini-2.5-flash',
@@ -27,22 +18,8 @@ export const getFriendlyModelName = (modelId: string): string => MODEL_FRIENDLY_
 export const DEFAULT_CHAT_MODEL = 'gemini-2.5-flash';
 
 export const THINKING_CONFIG_SUPPORTED_MODELS = [
-  'gemini-2.5-flash', // Flash model supports thinking config
+  'gemini-2.5-flash',
 ];
-
-const TITLE_GENERATION_MODEL_NAME = 'gemini-2.5-flash';
-
-let ai: GoogleGenAI;
-let chatSessionInstance: Chat | null = null;
-
-const initializeAI = () => {
-  if (!process.env.API_KEY) {
-    throw new Error('API_KEY environment variable not set. Please ensure it is configured.');
-  }
-  if (!ai) {
-    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  }
-};
 
 const mapAppMessagesToGeminiHistoryForTitle = (messages: ChatMessageContent[], initialWelcomeTextBase: string): ChatMessageHistoryItem[] => {
   return messages
@@ -73,7 +50,6 @@ const generateFallbackTitle = (chatMessages: ChatMessageContent[]): string => {
 };
 
 export const generateChatTitleWithAI = async (chatMessages: ChatMessageContent[], initialWelcomeTextBase: string): Promise<string> => {
-  initializeAI();
   if (!chatMessages || chatMessages.length === 0) {
     return "New Chat";
   }
@@ -101,21 +77,21 @@ ${conversationContext}
 Title:`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: TITLE_GENERATION_MODEL_NAME,
-      contents: titlePrompt,
-      config: {
-        temperature: 0.3,
-        maxOutputTokens: 60,
-      },
+    const apiResponse = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'generate-title',
+        payload: { titlePrompt },
+      }),
     });
     
-    if (response.promptFeedback?.blockReason) {
-      console.warn(`Title generation prompt was blocked. Reason: ${response.promptFeedback.blockReason}. Details:`, response.promptFeedback);
-      return generateFallbackTitle(chatMessages);
+    if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.error || `API Error: ${apiResponse.statusText}`);
     }
 
-    const responseText = response.text;
+    const { text: responseText } = await apiResponse.json();
 
     if (typeof responseText === 'string' && responseText.trim() !== "") {
       let cleanTitle = responseText.trim().replace(/^["']|["']$/g, '');
@@ -132,11 +108,7 @@ Title:`;
       }
       return cleanTitle;
     } else {
-      console.warn("AI title generation: response.text was empty or not a string. Inspecting further details.", {
-        responseTextActual: responseText,
-        candidates: response.candidates,
-        promptFeedback: response.promptFeedback
-      });
+      console.warn("AI title generation via proxy returned empty or invalid response.", { responseText });
       return generateFallbackTitle(chatMessages);
     }
   } catch (error) {
@@ -145,54 +117,64 @@ Title:`;
   }
 };
 
-export const initializeChatSession = (
-  modelName: string,
-  history?: ChatMessageHistoryItem[], 
-  thinkingBudgetUiValue?: number 
-): Chat => {
-  initializeAI();
-  const friendlyModelName = getFriendlyModelName(modelName);
-  const currentModelToUse = AVAILABLE_CHAT_MODELS.includes(modelName) ? modelName : DEFAULT_CHAT_MODEL;
-
-
-  const chatConfig: { systemInstruction: string; thinkingConfig?: { thinkingBudget: number } } = { 
-    systemInstruction: `You are NeuraMorphosis AI, a helpful and independent text-based chat assistant. You are currently operating as the '${friendlyModelName}' model configuration.
+export const sendMessageToChatStream = async function* (
+    message: string | Part[],
+    history: ChatMessageHistoryItem[],
+    model: string,
+    thinkingBudget: number
+): AsyncGenerator<GenerateContentResponse> {
+    
+    const friendlyModelName = getFriendlyModelName(model);
+    const chatConfig: { systemInstruction: string; thinkingConfig?: { thinkingBudget: number } } = { 
+        systemInstruction: `You are NeuraMorphosis AI, a helpful and independent text-based chat assistant. You are currently operating as the '${friendlyModelName}' model configuration.
 Provide helpful text-based responses.
 If asked about your capabilities, mention you are a text-based assistant.
 Respond in the language of the user's input if it is clear, otherwise default to English.
 `,
-  };
+    };
 
-  // Only apply thinkingConfig if the model is 'gemini-2.5-flash'
-  if (currentModelToUse === 'gemini-2.5-flash' && thinkingBudgetUiValue !== undefined) {
-      // The thinking budget is a direct 0-5 value from the UI for Flash. 0 disables it.
-      chatConfig.thinkingConfig = { 
-        thinkingBudget: thinkingBudgetUiValue,
-      };
-      console.log(`Chat session initialized for Flash model: ${currentModelToUse}. Applying thinkingConfig. Budget: ${chatConfig.thinkingConfig.thinkingBudget} (0-5 scale, 0 disables).`);
-  } else {
-    console.log(`Chat session initialized with model: ${currentModelToUse} ('${friendlyModelName}'). Thinking config not applicable or budget not set.`);
-  }
+    if (model === 'gemini-2.5-flash' && thinkingBudget !== undefined) {
+        chatConfig.thinkingConfig = { 
+          thinkingBudget: thinkingBudget,
+        };
+    }
+    
+    const partsForMessage: Part[] = typeof message === 'string' ? [{ text: message }] : message;
 
-  chatSessionInstance = ai.chats.create({
-    model: currentModelToUse,
-    config: chatConfig,
-    history: (history as Content[]) || [],
-  });
-  return chatSessionInstance;
-};
-
-export const sendMessageToChatStream = async (
-  message: string | Part[]
-): Promise<AsyncIterable<GenerateContentResponse>> => {
-  if (!chatSessionInstance) {
-    console.error("sendMessageToChatStream called but chatSessionInstance is null. This indicates an initialization lifecycle issue in the calling code (e.g., App.tsx).");
-    throw new Error("Chat session is not active. Please ensure the chat is properly initialized before sending messages.");
-  }
-  const partsForMessage: Part[] = typeof message === 'string' ? [{ text: message }] : message;
-  return chatSessionInstance.sendMessageStream({ message: partsForMessage });
-};
-
-export const resetChatSession = (): void => {
-  chatSessionInstance = null;
+    const response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            type: 'chat',
+            payload: {
+                history,
+                message: { parts: partsForMessage },
+                model,
+                config: chatConfig,
+            }
+        }),
+    });
+    
+    if (!response.ok || !response.body) {
+        let errorText = `API request failed with status ${response.status}`;
+        try {
+            const errorJson = await response.json();
+            errorText = errorJson.error || errorText;
+        } catch (e) {
+            // response was not json
+        }
+        console.error("Proxy chat error:", errorText);
+        throw new Error(errorText);
+    }
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        // The original function yields GenerateContentResponse objects.
+        // We simulate that here since the client only uses `chunk.text`.
+        yield { text: decoder.decode(value) } as GenerateContentResponse;
+    }
 };
