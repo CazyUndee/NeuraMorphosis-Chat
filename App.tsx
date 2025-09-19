@@ -565,7 +565,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className={`flex h-screen bg-[var(--background)] text-[var(--text-primary)] overflow-hidden`}>
+    <div className={`flex h-screen text-[var(--text-primary)] overflow-hidden`}>
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 md:hidden"
