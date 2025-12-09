@@ -492,7 +492,7 @@ export const App: React.FC = () => {
       )}
 
       {currentView !== 'summarizer' && currentView !== 'settings' && (
-        <aside className={`absolute md:static top-0 left-0 h-full bg-[var(--surface-1)] text-[var(--text-primary)] w-64 md:w-72 space-y-3 p-4 z-30 transform transition-transform duration-300 ease-in-out
+        <aside className={`absolute md:static top-0 left-0 h-full bg-[var(--surface-1)] backdrop-blur-xl border-r border-[var(--border-color)] text-[var(--text-primary)] w-64 md:w-72 space-y-3 p-4 z-30 transform transition-transform duration-300 ease-in-out
                           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 flex flex-col`}> 
           <div className="flex justify-between items-center">
             <h1 className="text-lg sm:text-xl font-semibold">Chat History</h1>
@@ -555,10 +555,10 @@ export const App: React.FC = () => {
         </aside>
       )}
 
-      <main className={`flex-1 flex flex-col bg-[var(--surface-2)] h-screen w-full ${currentView === 'summarizer' ? 'overflow-y-auto' : 'relative'}`}>
+      <main className={`flex-1 flex flex-col bg-transparent h-screen w-full ${currentView === 'summarizer' ? 'overflow-y-auto' : 'relative'}`}>
         {currentView === 'chat' && (
           <>
-            <header className="bg-[var(--surface-1)] p-3 sm:p-4 flex items-center justify-between z-10 h-[60px] flex-shrink-0"> 
+            <header className="bg-[var(--surface-1)] backdrop-blur-xl border-b border-[var(--border-color)] p-3 sm:p-4 flex items-center justify-between z-10 h-[60px] flex-shrink-0"> 
               <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 -ml-2 rounded-full hover:bg-[var(--surface-3)] focus:outline-none focus:ring-1 focus:ring-[var(--ring)]">
                 <Menu className="w-6 h-6" />
               </button>
@@ -569,7 +569,7 @@ export const App: React.FC = () => {
               <div className="hidden md:block w-0"></div> 
             </header>
 
-            <div className="flex-1 overflow-y-auto py-4 bg-gradient-to-br from-[var(--surface-2)] to-[var(--background)] pb-24" role="log">
+            <div className="flex-1 overflow-y-auto py-4 pb-24" role="log">
               <div className="w-[95%] sm:w-4/5 max-w-4xl mx-auto space-y-6">
                 {isEffectivelyNewChat ? (
                   <NewChatLandingPage

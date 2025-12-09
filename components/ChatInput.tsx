@@ -1,14 +1,14 @@
 
 import React, { useState, ChangeEvent, FormEvent, KeyboardEvent, useRef, useEffect } from 'react';
-import { ArrowUp } from 'lucide-react'; 
+import { ArrowUp } from 'lucide-react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ 
-  onSendMessage, 
+const ChatInput: React.FC<ChatInputProps> = ({
+  onSendMessage,
   isLoading,
 }) => {
   const [inputText, setInputText] = useState('');
@@ -16,7 +16,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'; 
+      textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
       const computedStyle = window.getComputedStyle(textareaRef.current);
       const maxHeightInPx = parseFloat(computedStyle.maxHeight);
@@ -51,14 +51,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <form 
-      onSubmit={handleSubmit} 
+    <form
+      onSubmit={handleSubmit}
       className="
         flex items-end w-full 
         bg-[var(--surface-glass)] rounded-full
         py-2 px-1 sm:px-1.5 
         transition-all duration-150 ease-in-out
-        backdrop-blur-xl border border-[var(--border-glass)]
+        backdrop-blur-xl border border-[var(--border-glass)] shadow-lg
       "
     >
       <textarea
@@ -78,10 +78,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
           resize-none overflow-y-hidden
           mr-2 
         "
-        style={{ minHeight: '2.5rem', maxHeight: '9rem' }} 
+        style={{ minHeight: '2.5rem', maxHeight: '9rem' }}
         aria-label="Chat message input"
       />
-      
+
       <button
         type="submit"
         disabled={isLoading || !inputText.trim()}
@@ -102,7 +102,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
         ) : (
-          <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5" /> 
+          <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5" />
         )}
       </button>
     </form>
